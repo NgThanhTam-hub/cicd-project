@@ -2,10 +2,8 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME    = "cicd-app"
-        IMAGE_TAG   = "build-${BUILD_NUMBER}"
-        CONTAINER   = "cicd-running"
-        APP_PORT    = "5000"
+        APP_NAME  = "cicd-app"
+        IMAGE_TAG = "build-${BUILD_NUMBER}"
     }
 
     stages {
@@ -22,44 +20,35 @@ pipeline {
                 echo "===== Running Unit Tests ====="
                 sh '''
                     pip3 install -r app/requirements.txt --quiet
-                    python3 -m pytest app/test_app.py -v
+                    python3 -m pytest app/test_app.py -v --tb=short
                 '''
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                echo "===== Building Docker Image ====="
-                sh "docker build -t ${APP_NAME}:${IMAGE_TAG} ."
-                sh "docker tag ${APP_NAME}:${IMAGE_TAG} ${APP_NAME}:latest"
+                echo "===== Building Docker Image: ${IMAGE_TAG} ====="
+                sh """
+                    docker build -t ${APP_NAME}:${IMAGE_TAG} .
+                    docker tag  ${APP_NAME}:${IMAGE_TAG} ${APP_NAME}:latest
+                """
             }
         }
 
-        stage('Deploy Container') {
+        stage('Deploy') {
             steps {
-                echo "===== Deploying Container ====="
-                sh '''
-                    # Dừng container cũ nếu đang chạy
-                    docker stop cicd-running || true
-                    docker rm cicd-running   || true
-
-                    # Chạy container mới
-                    docker run -d \
-                        --name cicd-running \
-                        -p 5000:5000 \
-                        --restart unless-stopped \
-                        cicd-app:latest
-                '''
+                echo "===== Deploying via Script ====="
+                sh "bash scripts/deploy.sh ${IMAGE_TAG}"
             }
         }
 
-        stage('Health Check') {
+        stage('Verify via Nginx') {
             steps {
-                echo "===== Checking App Health ====="
+                echo "===== Verifying through Nginx (port 80) ====="
                 sh '''
-                    sleep 3
-                    curl -f http://localhost:5000/health || exit 1
-                    echo "App is healthy!"
+                    sleep 2
+                    curl -sf http://localhost/health || exit 1
+                    echo "App is live via Nginx!"
                 '''
             }
         }
@@ -67,11 +56,12 @@ pipeline {
 
     post {
         success {
-            echo "PIPELINE SUCCESS - Build #${BUILD_NUMBER} deployed!"
+            echo "DEPLOY SUCCESS - Build #${BUILD_NUMBER} is live!"
         }
         failure {
-            echo "PIPELINE FAILED - Check logs above!"
+            echo "DEPLOY FAILED - Rolling back..."
             sh "docker stop cicd-running || true"
+            sh "docker rm   cicd-running || true"
         }
     }
 }
