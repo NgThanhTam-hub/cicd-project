@@ -75,3 +75,34 @@ pipeline {
         }
     }
 }
+post {
+        always {
+            // Dọn dẹp không gian làm việc cho sạch máy sau khi build xong
+            cleanWs()
+        }
+        success {
+            script {
+                // THAY THÔNG TIN CỦA BẠN VÀO 2 DÒNG DƯỚI ĐÂY
+                def TOKEN = "784521963:AAH_xXyY_zzZ12345..." 
+                def CHAT_ID = "123456789"
+                
+                // Nội dung tin nhắn khi thành công (Ký tự %0A là lệnh xuống dòng)
+                def MESSAGE = "✅ *JENKINS: DEPLOY THÀNH CÔNG* 🚀%0A%0A• *Dự án:* ${env.JOB_NAME}%0A• *Build số:* #${env.BUILD_NUMBER}%0A• *Trạng thái:* Đã cập nhật phiên bản mới lên CentOS Stream 10 thành công với Zero-downtime!"
+                
+                // Chạy lệnh curl gửi dữ liệu đến API của Telegram
+                sh "curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${CHAT_ID} -d text='${MESSAGE}' -d parse_mode='Markdown'"
+            }
+        }
+        failure {
+            script {
+                // THAY THÔNG TIN CỦA BẠN VÀO 2 DÒNG DƯỚI ĐÂY
+                def TOKEN = "784521963:AAH_xXyY_zzZ12345..."
+                def CHAT_ID = "123456789"
+                
+                // Nội dung tin nhắn khi thất bại
+                def MESSAGE = "❌ *JENKINS: DEPLOY THẤT BẠI* ⚠️%0A%0A• *Dự án:* ${env.JOB_NAME}%0A• *Build số:* #${env.BUILD_NUMBER}%0A• *Trạng thái:* Quá trình build/deploy gặp lỗi, hệ thống giữ nguyên phiên bản cũ để an toàn. Vui lòng check log!"
+                
+                sh "curl -s -X POST https://api.telegram.org/bot${TOKEN}/sendMessage -d chat_id=${CHAT_ID} -d text='${MESSAGE}' -d parse_mode='Markdown'"
+            }
+        }
+    }
